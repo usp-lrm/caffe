@@ -99,6 +99,8 @@ void DenseImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bott
 
   // Use data_transformer to infer the expected blob shape from a cv image.
   vector<int> label_shape = this->data_transformer_->InferBlobShape(cv_lab);
+  this->transformed_label_.Reshape(label_shape);
+
   label_shape[0] = batch_size;
   for (int i = 0; i < this->prefetch_.size(); ++i) {
     this->prefetch_[i]->label_.Reshape(label_shape);
@@ -129,6 +131,7 @@ void DenseImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   CPUTimer timer;
   CHECK(batch->data_.count());
   CHECK(this->transformed_data_.count());
+  CHECK(this->transformed_label_.count());
   DenseImageDataParameter dense_image_data_param = this->layer_param_.dense_image_data_param();
   const int batch_size = dense_image_data_param.batch_size();
   const int new_height = dense_image_data_param.new_height();
@@ -149,9 +152,20 @@ void DenseImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   top_shape[0] = batch_size;
   batch->data_.Reshape(top_shape);
 
+  cv::Mat cv_lab = ReadImageToCVMat(root_folder + lines_[lines_id_].second,
+                                    new_height, new_width, false);
+  CHECK(cv_lab.data) << "Could not load " << lines_[lines_id_].second;
+  CHECK(cv_lab.channels() == 1) << "Can only handle grayscale label images";
+  CHECK(cv_lab.rows == cv_img.rows && cv_lab.cols == cv_img.cols) << "Input and label "
+      << "image heights and widths must match";
+  // Use data_transformer to infer the expected blob shape from a cv image.
+  vector<int> label_shape = this->data_transformer_->InferBlobShape(cv_lab);
+  this->transformed_label_.Reshape(label_shape);
+  label_shape[0] = batch_size;
+  batch->label_.Reshape(label_shape);
+
   Dtype* prefetch_data = batch->data_.mutable_cpu_data();
   Dtype* prefetch_label = batch->label_.mutable_cpu_data();
-
 
   // datum scales
   const int lines_size = lines_.size();
