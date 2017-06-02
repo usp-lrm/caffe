@@ -9,7 +9,7 @@
 #include "caffe/filler.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/io.hpp"
-#include "caffe/vision_layers.hpp"
+#include "caffe/layers/dense_image_data_layer.hpp"
 
 #include "caffe/test/test_caffe_main.hpp"
 
@@ -24,6 +24,12 @@ class DenseImageDataLayerTest : public MultiDeviceTest<TypeParam> {
       : seed_(1701),
         blob_top_data_(new Blob<Dtype>()),
         blob_top_label_(new Blob<Dtype>()) {}
+
+  virtual ~DenseImageDataLayerTest() {
+    delete blob_top_data_;
+    delete blob_top_label_;
+  }
+
   virtual void SetUp() {
     blob_top_vec_.push_back(blob_top_data_);
     blob_top_vec_.push_back(blob_top_label_);
@@ -46,11 +52,6 @@ class DenseImageDataLayerTest : public MultiDeviceTest<TypeParam> {
     reshapefile << EXAMPLES_SOURCE_DIR "images/fish-bike.jpg " 
         << EXAMPLES_SOURCE_DIR "images/fish-bike_label.png ";
     reshapefile.close();
-  }
-
-  virtual ~DenseImageDataLayerTest() {
-    delete blob_top_data_;
-    delete blob_top_label_;
   }
 
   int seed_;
