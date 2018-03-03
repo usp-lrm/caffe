@@ -36,38 +36,42 @@ void GeometricLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   unsigned count = bottom[0]->count();
   caffe_sub( count, bottom[0]->cpu_data(), bottom[1]->cpu_data(),
         diff_.mutable_cpu_data() );
-  caffe_abs( count, diff_.cpu_data(), diff_.mutable_cpu_data() );
-  const vector<int> shape = diff_.shape();
-//  N = shape(0)  C = shape(1)  H = shape(2)  W = shape(3)
-  const unsigned spatial_dim = shape[2] * shape[3];
-  const unsigned image_dim = shape[1] * spatial_dim;
-  // Add errors to the fist independent dimensions
-  for( size_t i = 0; i < shape[0]; ++i ){
-    for( size_t j = 0; j < (shape[1]/num_dim_ - 1); ++j ){
-      caffe_add(
-        spatial_dim,
-        diff_.cpu_data() + i*image_dim,
-        diff_.cpu_data() + i*image_dim + (j+1)*num_dim_*spatial_dim,
-        diff_.mutable_cpu_data() + i*image_dim);
-    }
-  }
-  // Replace the error values in other dimensions
-  for( size_t i = 0; i < shape[0]; ++i ){
-    for( size_t j = 0; j < (shape[1]/num_dim_ - 1); ++j ){
-      caffe_copy(
-        spatial_dim,
-        diff_.cpu_data() + i*image_dim,
-        diff_.mutable_cpu_data() + i*image_dim + (j+1)*num_dim_*spatial_dim);
-    }
-  }
   Dtype dot = caffe_cpu_dot(count, diff_.cpu_data(), diff_.cpu_data());
   Dtype loss = dot / bottom[0]->shape(0) / Dtype(2);
   top[0]->mutable_cpu_data()[0] = loss;
 }
 
+
 template <typename Dtype>
 void GeometricLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
+  const vector<int> shape = diff_.shape();
+  //  N = shape(0)  C = shape(1)  H = shape(2)  W = shape(3)
+  const unsigned spatial_dim = shape[2] * shape[3];
+  const unsigned image_dim = shape[1] * spatial_dim;
+  // Add errors to the fist independent dimensions
+  for( size_t i = 0; i < shape[0]; ++i ){
+    for( size_t j = 0; j < num_dim_; ++j ){
+      for( size_t k = 0; k < (shape[1]/num_dim_ - 1); ++k ){
+        caffe_add(
+          spatial_dim,
+          diff_.cpu_data() + i*image_dim + j*spatial_dim,
+          diff_.cpu_data() + i*image_dim + j*spatial_dim + (k+1)*num_dim_*spatial_dim,
+          diff_.mutable_cpu_data() + i*image_dim + j*spatial_dim);
+      }
+    }
+  }
+  // Replace the error values in other dimensions
+  for( size_t i = 0; i < shape[0]; ++i ){
+    for( size_t j = 0; j < num_dim_; ++j ){
+      for( size_t k = 0; k < (shape[1]/num_dim_ - 1); ++k ){
+        caffe_copy(
+          spatial_dim,
+          diff_.cpu_data() + i*image_dim + j*spatial_dim,
+          diff_.mutable_cpu_data() + i*image_dim + j*spatial_dim + (k+1)*num_dim_*spatial_dim);
+      }
+    }
+  }
   for (int i = 0; i < 2; ++i) {
     if (propagate_down[i]) {
       const Dtype sign = (i == 0) ? 1 : -1;
@@ -81,7 +85,6 @@ void GeometricLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     }
   }
 }
-
 #ifdef CPU_ONLY
 STUB_GPU(GeometricLossLayer);
 #endif
